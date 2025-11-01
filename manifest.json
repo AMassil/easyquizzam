@@ -1,5 +1,5 @@
 {
-  "name": "QCM Trainer - Protéomique",
+  "name": "QCM Trainer",
   "short_name": "QCM Trainer",
   "description": "Application d'entraînement QCM pour vos révisions",
   "start_url": "/",

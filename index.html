@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#4F46E5">
+    <meta name="description" content="Application d'entraînement QCM pour révisions">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==">
+    <title>QCM Trainer - Protéomique</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Style pour l'installation PWA */
+        .install-prompt {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #4F46E5;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            gap: 12px;
+            max-width: 90%;
+        }
+        .install-prompt.show {
+            display: flex;
+        }
+        .install-prompt button {
+            background: white;
+            color: #4F46E5;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .install-prompt .close-btn {
+            background: transparent;
+            color: white;
+            padding: 4px 8px;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <!-- Prompt d'installation PWA -->
+    <div id="installPrompt" class="install-prompt">
+        <span>📱 Installer l'application sur votre écran d'accueil</span>
+        <button id="installBtn">Installer</button>
+        <button id="closePrompt" class="close-btn">✕</button>
+    </div>
+
+    <script>
+        // Service Worker et PWA
+        let deferredPrompt;
+        const installPromptEl = document.getElementById('installPrompt');
+        const installBtn = document.getElementById('installBtn');
+        const closePromptBtn = document.getElementById('closePrompt');
+
+        // Enregistrer le service worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').then(reg => {
+                console.log('Service Worker enregistré', reg);
+            }).catch(err => {
+                console.log('Erreur Service Worker', err);
+            });
+        }
+
+        // Capturer l'événement d'installation
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            
+            // Afficher le prompt après 3 secondes
+            setTimeout(() => {
+                installPromptEl.classList.add('show');
+            }, 3000);
+        });
+
+        // Gérer le clic sur le bouton d'installation
+        installBtn.addEventListener('click', async () => {
+            if (!deferredPrompt) return;
+            
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            
+            console.log(`User response: ${outcome}`);
+            deferredPrompt = null;
+            installPromptEl.classList.remove('show');
+        });
+
+        // Fermer le prompt
+        closePromptBtn.addEventListener('click', () => {
+            installPromptEl.classList.remove('show');
+        });
+
+        // Cacher le prompt si déjà installé
+        window.addEventListener('appinstalled', () => {
+            installPromptEl.classList.remove('show');
+            deferredPrompt = null;
+        });
+    </script>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // Icônes SVG
+        const BookOpen = () => (
+            <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+            </svg>
+        );
+
+        const Folder = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+            </svg>
+        );
+
+        const Plus = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+        );
+
+        const Play = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+        );
+
+        const Edit = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+        );
+
+        const Trash2 = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+        );
+
+        const Upload = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+        );
+
+        const CheckCircle = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+        );
+
+        const XCircle = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+        );
+
+        const Zap = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+        );
+
+        const Download = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+        );
+
+        const ArrowLeft = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+        );
+
+        const QCMTrainerApp = () => {
+            const [mode, setMode] = useState('folders');
+            const [folders, setFolders] = useState([]);
+            const [currentFolder, setCurrentFolder] = useState(null);
+            const [questions, setQuestions] = useState([]);
+            const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+            const [userAnswers, setUserAnswers] = useState({});
+            const [showResults, setShowResults] = useState(false);
+            const [score, setScore] = useState(0);
+            const [newQuestionText, setNewQuestionText] = useState('');
+            const [newFolderName, setNewFolderName] = useState('');
+            const [instantFeedback, setInstantFeedback] = useState(false);
+            const [answeredQuestions, setAnsweredQuestions] = useState({});
+
+            useEffect(() => {
+                loadFolders();
+            }, []);
+
+            const loadFolders = () => {
+                const stored = localStorage.getItem('qcm-folders');
+                if (stored) {
+                    try {
+                        setFolders(JSON.parse(stored));
+                    } catch (e) {
+                        const defaultFolder = {
+                            id: Date.now(),
+                            name: 'Protéomique',
+                            questions: getInitialQuestions()
+                        };
+                        setFolders([defaultFolder]);
+                    }
+                } else {
+                    const defaultFolder = {
+                        id: Date.now(),
+                        name: 'Protéomique',
+                        questions: getInitialQuestions()
+                    };
+                    setFolders([defaultFolder]);
+                }
+            };
+
+            const saveFolders = (newFolders) => {
+                localStorage.setItem('qcm-folders', JSON.stringify(newFolders));
+                setFolders(newFolders);
+            };
+
+            const createFolder = () => {
+                if (!newFolderName.trim()) {
+                    alert('Veuillez entrer un nom de dossier');
+                    return;
+                }
+                const newFolder = {
+                    id: Date.now(),
+                    name: newFolderName.trim(),
+                    questions: []
+                };
+                const updated = [...folders, newFolder];
+                saveFolders(updated);
+                setNewFolderName('');
+            };
+
+            const deleteFolder = (id) => {
+                if (window.confirm('Êtes-vous sûr de vouloir supprimer ce dossier et toutes ses questions ?')) {
+                    const updated = folders.filter(f => f.id !== id);
+                    saveFolders(updated);
+                }
+            };
+
+            const selectFolder = (folder) => {
+                setCurrentFolder(folder);
+                setQuestions(folder.questions);
+                setMode('menu');
+            };
+
+            const updateFolderQuestions = (newQuestions) => {
+                const updated = folders.map(f => 
+                    f.id === currentFolder.id 
+                        ? { ...f, questions: newQuestions }
+                        : f
+                );
+                saveFolders(updated);
+                setQuestions(newQuestions);
+                setCurrentFolder({ ...currentFolder, questions: newQuestions });
+            };
+
+            const getInitialQuestions = () => [
+                {
+                    id: 1,
+                    text: "One gene codes for one protein",
+                    type: "single",
+                    options: ["True", "False"],
+                    correctAnswers: ["False"]
+                },
+                {
+                    id: 2,
+                    text: "There is a good correlation between mRNA and proteins half life in eukaryotic cells.",
+                    type: "single",
+                    options: ["True", "False"],
+                    correctAnswers: ["False"]
+                },
+                {
+                    id: 3,
+                    text: "How many estimated proteoforms are present in human cells?",
+                    type: "single",
+                    options: ["20 000", "100 000", "10 millions", "20 millions"],
+                    correctAnswers: ["10 millions"]
+                },
+                {
+                    id: 4,
+                    text: "In a bottom up proteomic experiment the proteins are digested in peptides by an enzyme.",
+                    type: "single",
+                    options: ["True", "False"],
+                    correctAnswers: ["True"]
+                },
+                {
+                    id: 5,
+                    text: "What is (are) the trypsin cleavage site(s)?",
+                    type: "multiple",
+                    options: ["Leu", "Lys", "Glu", "Arg"],
+                    correctAnswers: ["Lys", "Arg"]
+                }
+            ];
+
+            const parseRawQCM = (text) => {
+                const questions = [];
+                const questionBlocks = text.split('---').filter(block => block.trim());
+                
+                questionBlocks.forEach((block, index) => {
+                    const lines = block.split('\n').map(line => line.trim()).filter(line => line);
+                    
+                    if (lines.length === 0) return;
+                    
+                    let questionText = '';
+                    let options = [];
+                    let correctAnswers = [];
+                    
+                    questionText = lines[0].replace(/^Q:\s*/i, '').trim();
+                    
+                    for (let i = 1; i < lines.length; i++) {
+                        const line = lines[i];
+                        
+                        if (line.startsWith('*')) {
+                            const option = line.substring(1).trim();
+                            options.push(option);
+                            correctAnswers.push(option);
+                        } else if (line.length > 0 && !line.startsWith('//')) {
+                            options.push(line);
+                        }
+                    }
+                    
+                    const type = correctAnswers.length > 1 ? 'multiple' : 'single';
+                    
+                    if (questionText && options.length > 0 && correctAnswers.length > 0) {
+                        questions.push({
+                            id: Date.now() + index + Math.random(),
+                            text: questionText,
+                            type: type,
+                            options: options,
+                            correctAnswers: correctAnswers
+                        });
+                    }
+                });
+                
+                return questions;
+            };
+
+            const addQuestionsFromText = () => {
+                if (!newQuestionText.trim()) return;
+                
+                const parsedQuestions = parseRawQCM(newQuestionText);
+                if (parsedQuestions.length > 0) {
+                    const updatedQuestions = [...questions, ...parsedQuestions];
+                    updateFolderQuestions(updatedQuestions);
+                    setNewQuestionText('');
+                    alert(`${parsedQuestions.length} question(s) ajoutée(s) avec succès !`);
+                } else {
+                    alert('Aucune question valide détectée. Vérifiez le format.');
+                }
+            };
+
+            const startQuiz = (instant = false) => {
+                setInstantFeedback(instant);
+                setCurrentQuestionIndex(0);
+                setUserAnswers({});
+                setAnsweredQuestions({});
+                setShowResults(false);
+                setScore(0);
+                setMode('quiz');
+            };
+
+            const handleAnswerSelect = (option) => {
+                const currentQuestion = questions[currentQuestionIndex];
+                const currentAnswers = userAnswers[currentQuestion.id] || [];
+                
+                if (currentQuestion.type === 'single') {
+                    setUserAnswers({ ...userAnswers, [currentQuestion.id]: [option] });
+                } else {
+                    const newAnswers = currentAnswers.includes(option)
+                        ? currentAnswers.filter(a => a !== option)
+                        : [...currentAnswers, option];
+                    setUserAnswers({ ...userAnswers, [currentQuestion.id]: newAnswers });
+                }
+            };
+
+            const validateCurrentAnswer = () => {
+                const currentQuestion = questions[currentQuestionIndex];
+                const userAns = userAnswers[currentQuestion.id] || [];
+                const correctAns = currentQuestion.correctAnswers;
+                
+                const isCorrect = userAns.length === correctAns.length &&
+                                userAns.every(a => correctAns.includes(a));
+                
+                setAnsweredQuestions({
+                    ...answeredQuestions,
+                    [currentQuestion.id]: {
+                        isCorrect,
+                        userAnswers: userAns
+                    }
+                });
+
+                return isCorrect;
+            };
+
+            const nextQuestion = () => {
+                if (instantFeedback && !answeredQuestions[questions[currentQuestionIndex].id]) {
+                    // En mode feedback instantané, valider d'abord la réponse
+                    validateCurrentAnswer();
+                } else {
+                    // En mode normal ou si déjà répondu, passer à la suivante
+                    if (currentQuestionIndex < questions.length - 1) {
+                        setCurrentQuestionIndex(currentQuestionIndex + 1);
+                    } else {
+                        calculateScore();
+                    }
+                }
+            };
+
+            const previousQuestion = () => {
+                if (currentQuestionIndex > 0) {
+                    setCurrentQuestionIndex(currentQuestionIndex - 1);
+                }
+            };
+
+            const calculateScore = () => {
+                let correct = 0;
+                questions.forEach(q => {
+                    const userAns = userAnswers[q.id] || [];
+                    const correctAns = q.correctAnswers;
+                    
+                    if (userAns.length === correctAns.length &&
+                        userAns.every(a => correctAns.includes(a))) {
+                        correct++;
+                    }
+                });
+                setScore(correct);
+                setShowResults(true);
+            };
+
+            const deleteQuestion = (id) => {
+                if (window.confirm('Êtes-vous sûr de vouloir supprimer cette question ?')) {
+                    const updated = questions.filter(q => q.id !== id);
+                    updateFolderQuestions(updated);
+                }
+            };
+
+            const exportData = () => {
+                const dataStr = JSON.stringify(folders, null, 2);
+                const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(dataBlob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `qcm-trainer-backup-${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            };
+
+            const importData = (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const imported = JSON.parse(e.target.result);
+                        if (Array.isArray(imported) && imported.length > 0) {
+                            if (window.confirm(`Importer ${imported.length} dossier(s) ? Cela remplacera toutes vos données actuelles.`)) {
+                                saveFolders(imported);
+                                alert('Import réussi !');
+                            }
+                        } else {
+                            alert('Fichier invalide : aucun dossier trouvé');
+                        }
+                    } catch (error) {
+                        alert('Erreur lors de l\'import : fichier JSON invalide');
+                        console.error(error);
+                    }
+                };
+                reader.readAsText(file);
+                event.target.value = '';
+            };
+
+            const exportFolder = () => {
+                const dataStr = JSON.stringify(currentFolder, null, 2);
+                const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(dataBlob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `${currentFolder.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}-${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            };
+
+            const importFolder = (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const imported = JSON.parse(e.target.result);
+                        
+                        // Vérifier si c'est un export complet (tableau de dossiers)
+                        if (Array.isArray(imported)) {
+                            if (window.confirm(`Importer ${imported.length} dossier(s) ? Cela remplacera toutes vos données actuelles.`)) {
+                                saveFolders(imported);
+                                alert('Import réussi !');
+                                setMode('folders');
+                            }
+                        }
+                        // Vérifier si c'est un seul dossier
+                        else if (imported.questions && Array.isArray(imported.questions)) {
+                            const newFolder = {
+                                id: Date.now(),
+                                name: imported.name || 'Dossier importé',
+                                questions: imported.questions
+                            };
+                            const updated = [...folders, newFolder];
+                            saveFolders(updated);
+                            alert(`Dossier "${newFolder.name}" importé avec ${newFolder.questions.length} questions !`);
+                            setMode('folders');
+                        } else {
+                            alert('Fichier invalide : format non reconnu');
+                        }
+                    } catch (error) {
+                        alert('Erreur lors de l\'import : fichier JSON invalide');
+                        console.error(error);
+                    }
+                };
+                reader.readAsText(file);
+                event.target.value = '';
+            };
+
+            // Vue des dossiers
+            if (mode === 'folders') {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-100 p-8">
+                        <div className="max-w-5xl mx-auto">
+                            <div className="bg-white rounded-2xl shadow-xl p-8">
+                                <div className="text-center mb-8">
+                                    <div className="flex justify-center mb-4">
+                                        <BookOpen />
+                                    </div>
+                                    <h1 className="text-4xl font-bold text-gray-800 mb-2">QCM Trainer</h1>
+                                    <p className="text-gray-600">Organisez vos questions par dossiers</p>
+                                </div>
+
+                                <div className="mb-6 flex gap-3">
+                                    <button
+                                        onClick={exportData}
+                                        className="flex-1 bg-blue-600 text-white px-4 py-3 rounded-xl hover:bg-blue-700 transition font-semibold flex items-center justify-center gap-2"
+                                        title="Exporter tous les dossiers"
+                                    >
+                                        <Download className="w-5 h-5" />
+                                        Exporter tout
+                                    </button>
+                                    <label className="flex-1 bg-green-600 text-white px-4 py-3 rounded-xl hover:bg-green-700 transition font-semibold flex items-center justify-center gap-2 cursor-pointer"
+                                           title="Importer un ou plusieurs dossiers">
+                                        <Upload className="w-5 h-5" />
+                                        Importer
+                                        <input
+                                            type="file"
+                                            accept=".json"
+                                            onChange={importFolder}
+                                            className="hidden"
+                                        />
+                                    </label>
+                                </div>
+
+                                <div className="mb-6">
+                                    <div className="flex gap-3">
+                                        <input
+                                            type="text"
+                                            value={newFolderName}
+                                            onChange={(e) => setNewFolderName(e.target.value)}
+                                            placeholder="Nom du nouveau dossier..."
+                                            className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-indigo-500 focus:outline-none"
+                                            onKeyPress={(e) => e.key === 'Enter' && createFolder()}
+                                        />
+                                        <button
+                                            onClick={createFolder}
+                                            className="bg-indigo-600 text-white px-6 py-3 rounded-xl hover:bg-indigo-700 transition font-semibold flex items-center gap-2"
+                                        >
+                                            <Plus className="w-5 h-5" />
+                                            Créer
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {folders.map(folder => (
+                                        <div key={folder.id} className="border-2 border-gray-200 rounded-xl p-6 hover:shadow-lg transition group">
+                                            <div className="flex items-start justify-between mb-4">
+                                                <div className="flex items-center gap-3 flex-1">
+                                                    <Folder className="w-10 h-10 text-indigo-600" />
+                                                    <div>
+                                                        <h3 className="text-xl font-bold text-gray-800">{folder.name}</h3>
+                                                        <p className="text-sm text-gray-500">{folder.questions.length} questions</p>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        deleteFolder(folder.id);
+                                                    }}
+                                                    className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition opacity-0 group-hover:opacity-100"
+                                                >
+                                                    <Trash2 className="w-5 h-5" />
+                                                </button>
+                                            </div>
+                                            <button
+                                                onClick={() => selectFolder(folder)}
+                                                className="w-full bg-indigo-100 text-indigo-700 px-4 py-2 rounded-lg hover:bg-indigo-200 transition font-semibold"
+                                            >
+                                                Ouvrir
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {folders.length === 0 && (
+                                    <div className="text-center py-12 text-gray-500">
+                                        <Folder className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                                        <p>Aucun dossier. Créez-en un pour commencer !</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // Menu principal d'un dossier
+            if (mode === 'menu') {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
+                        <div className="max-w-4xl mx-auto">
+                            <div className="bg-white rounded-2xl shadow-xl p-8">
+                                <button
+                                    onClick={() => setMode('folders')}
+                                    className="flex items-center gap-2 text-gray-600 hover:text-gray-800 mb-6 transition"
+                                >
+                                    <ArrowLeft className="w-5 h-5" />
+                                    Retour aux dossiers
+                                </button>
+
+                                <div className="text-center mb-8">
+                                    <Folder className="w-16 h-16 mx-auto text-indigo-600 mb-4" />
+                                    <h1 className="text-4xl font-bold text-gray-800 mb-2">{currentFolder.name}</h1>
+                                    <p className="text-sm text-gray-500 mt-2">{questions.length} questions disponibles</p>
+                                    <button
+                                        onClick={exportFolder}
+                                        className="mt-4 text-sm bg-blue-100 text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-200 transition inline-flex items-center gap-2"
+                                    >
+                                        <Download className="w-4 h-4" />
+                                        Exporter ce dossier
+                                    </button>
+                                </div>
+                                
+                                <div className="grid gap-4">
+                                    <button
+                                        onClick={() => startQuiz(false)}
+                                        disabled={questions.length === 0}
+                                        className="flex items-center justify-center gap-3 bg-indigo-600 text-white px-8 py-4 rounded-xl hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed text-lg font-semibold"
+                                    >
+                                        <Play className="w-6 h-6" />
+                                        Mode Normal
+                                    </button>
+
+                                    <button
+                                        onClick={() => startQuiz(true)}
+                                        disabled={questions.length === 0}
+                                        className="flex items-center justify-center gap-3 bg-purple-600 text-white px-8 py-4 rounded-xl hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed text-lg font-semibold"
+                                    >
+                                        <Zap className="w-6 h-6" />
+                                        Mode Feedback Instantané
+                                    </button>
+                                    
+                                    <button
+                                        onClick={() => setMode('add')}
+                                        className="flex items-center justify-center gap-3 bg-green-600 text-white px-8 py-4 rounded-xl hover:bg-green-700 transition text-lg font-semibold"
+                                    >
+                                        <Plus className="w-6 h-6" />
+                                        Ajouter des questions
+                                    </button>
+                                    
+                                    <button
+                                        onClick={() => setMode('manage')}
+                                        className="flex items-center justify-center gap-3 bg-gray-600 text-white px-8 py-4 rounded-xl hover:bg-gray-700 transition text-lg font-semibold"
+                                    >
+                                        <Edit className="w-6 h-6" />
+                                        Gérer les questions
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // Mode ajout de questions
+            if (mode === 'add') {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 p-8">
+                        <div className="max-w-4xl mx-auto">
+                            <div className="bg-white rounded-2xl shadow-xl p-8">
+                                <h2 className="text-3xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                                    <Upload className="w-8 h-8 text-green-600" />
+                                    Ajouter des questions à "{currentFolder.name}"
+                                </h2>
+                                
+                                <div className="mb-6">
+                                    <div className="bg-blue-50 p-4 rounded-lg text-sm text-gray-700 mb-4">
+                                        <strong>📝 Format à utiliser :</strong>
+                                        <pre className="mt-2 bg-white p-3 rounded border border-blue-200 text-xs overflow-x-auto">
+{`Votre question ici ?
+Option incorrecte 1
+*Option correcte
+Option incorrecte 2
+---
+Autre question ?
+*Réponse correcte 1
+*Réponse correcte 2
+Option incorrecte
+---`}
+                                        </pre>
+                                        <div className="mt-3 space-y-1">
+                                            <p>✅ Séparez les questions avec <code className="bg-white px-2 py-1 rounded">---</code></p>
+                                            <p>✅ Mettez un <code className="bg-white px-2 py-1 rounded">*</code> devant les bonnes réponses</p>
+                                            <p>✅ Une ligne = une option</p>
+                                            <p>✅ Plusieurs <code className="bg-white px-2 py-1 rounded">*</code> = QCM à choix multiple</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <textarea
+                                    value={newQuestionText}
+                                    onChange={(e) => setNewQuestionText(e.target.value)}
+                                    placeholder="Collez ici le contenu de vos QCM..."
+                                    className="w-full h-96 p-4 border-2 border-gray-300 rounded-xl focus:border-green-500 focus:outline-none font-mono text-sm"
+                                />
+                                
+                                <div className="flex gap-4 mt-6">
+                                    <button
+                                        onClick={addQuestionsFromText}
+                                        className="flex-1 bg-green-600 text-white px-6 py-3 rounded-xl hover:bg-green-700 transition font-semibold"
+                                    >
+                                        Ajouter les questions
+                                    </button>
+                                    <button
+                                        onClick={() => setMode('menu')}
+                                        className="px-6 py-3 bg-gray-300 text-gray-700 rounded-xl hover:bg-gray-400 transition font-semibold"
+                                    >
+                                        Retour
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // Mode gestion des questions
+            if (mode === 'manage') {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-slate-100 p-8">
+                        <div className="max-w-4xl mx-auto">
+                            <div className="bg-white rounded-2xl shadow-xl p-8">
+                                <h2 className="text-3xl font-bold text-gray-800 mb-6">Gestion des questions - {currentFolder.name}</h2>
+                                
+                                <div className="mb-4 flex justify-between items-center">
+                                    <p className="text-gray-600">{questions.length} question(s) au total</p>
+                                </div>
+                                
+                                <div className="space-y-4 max-h-96 overflow-y-auto mb-6">
+                                    {questions.map((q, index) => (
+                                        <div key={q.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
+                                            <div className="flex justify-between items-start gap-4">
+                                                <div className="flex-1">
+                                                    <p className="font-semibold text-gray-800 mb-2">
+                                                        {index + 1}. {q.text}
+                                                    </p>
+                                                    <p className="text-sm text-gray-600">
+                                                        Type: {q.type === 'single' ? 'Choix unique' : 'Choix multiple'}
+                                                    </p>
+                                                    <p className="text-sm text-green-600 mt-1">
+                                                        ✓ Réponse(s): {q.correctAnswers.join(', ')}
+                                                    </p>
+                                                </div>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        deleteQuestion(q.id);
+                                                    }}
+                                                    className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition flex-shrink-0"
+                                                    title="Supprimer cette question"
+                                                >
+                                                    <Trash2 className="w-5 h-5" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                
+                                <button
+                                    onClick={() => setMode('menu')}
+                                    className="w-full bg-gray-600 text-white px-6 py-3 rounded-xl hover:bg-gray-700 transition font-semibold"
+                                >
+                                    Retour au menu
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // Mode quiz
+            if (mode === 'quiz' && !showResults) {
+                const currentQuestion = questions[currentQuestionIndex];
+                const currentAnswers = userAnswers[currentQuestion.id] || [];
+                const questionAnswered = answeredQuestions[currentQuestion.id];
+
+                const getOptionClassName = (option) => {
+                    if (!instantFeedback || !questionAnswered) {
+                        return currentAnswers.includes(option)
+                            ? 'border-indigo-600 bg-indigo-50'
+                            : 'border-gray-300 bg-white hover:border-indigo-400';
+                    }
+
+                    const isCorrectAnswer = currentQuestion.correctAnswers.includes(option);
+                    const isUserAnswer = currentAnswers.includes(option);
+
+                    if (isCorrectAnswer) {
+                        return 'border-green-500 bg-green-50';
+                    }
+                    if (isUserAnswer && !isCorrectAnswer) {
+                        return 'border-red-500 bg-red-50';
+                    }
+                    return 'border-gray-300 bg-gray-50';
+                };
+
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-100 p-8">
+                        <div className="max-w-3xl mx-auto">
+                            <div className="bg-white rounded-2xl shadow-xl p-8">
+                                <div className="mb-6">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <button
+                                            onClick={() => {
+                                                if (window.confirm('Voulez-vous quitter le quiz et retourner au menu ?')) {
+                                                    setMode('menu');
+                                                }
+                                            }}
+                                            className="text-sm text-gray-600 hover:text-gray-800 flex items-center gap-1 transition"
+                                        >
+                                            <ArrowLeft className="w-4 h-4" />
+                                            Quitter
+                                        </button>
+                                        <span className="text-sm font-semibold text-indigo-600">
+                                            Question {currentQuestionIndex + 1} / {questions.length}
+                                        </span>
+                                        <div className="flex items-center gap-2">
+                                            {instantFeedback && (
+                                                <span className="text-xs bg-purple-100 text-purple-700 px-3 py-1 rounded-full font-semibold flex items-center gap-1">
+                                                    <Zap className="w-3 h-3" />
+                                                    Feedback instantané
+                                                </span>
+                                            )}
+                                            <span className="text-sm text-gray-600">
+                                                {currentQuestion.type === 'multiple' ? 'Plusieurs réponses possibles' : 'Une seule réponse'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="w-full bg-gray-200 rounded-full h-2">
+                                        <div
+                                            className="bg-indigo-600 h-2 rounded-full transition-all"
+                                            style={{ width: `${((currentQuestionIndex + 1) / questions.length) * 100}%` }}
+                                        />
+                                    </div>
+                                </div>
+
+                                <h3 className="text-2xl font-bold text-gray-800 mb-6">
+                                    {currentQuestion.text}
+                                </h3>
+
+                                {questionAnswered && (
+                                    <div className={`mb-6 p-4 rounded-xl ${questionAnswered.isCorrect ? 'bg-green-100 border-2 border-green-500' : 'bg-red-100 border-2 border-red-500'}`}>
+                                        <div className="flex items-center gap-3">
+                                            {questionAnswered.isCorrect ? (
+                                                <>
+                                                    <CheckCircle className="w-6 h-6 text-green-600" />
+                                                    <span className="font-semibold text-green-800">Bonne réponse ! ✓</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <XCircle className="w-6 h-6 text-red-600" />
+                                                    <div>
+                                                        <span className="font-semibold text-red-800 block">Réponse incorrecte</span>
+                                                        <span className="text-sm text-red-700">La bonne réponse : {currentQuestion.correctAnswers.join(', ')}</span>
+                                                    </div>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="space-y-3 mb-8">
+                                    {currentQuestion.options.map((option, index) => (
+                                        <button
+                                            key={index}
+                                            onClick={() => !questionAnswered && handleAnswerSelect(option)}
+                                            disabled={questionAnswered}
+                                            className={`w-full text-left p-4 rounded-xl border-2 transition ${getOptionClassName(option)} ${questionAnswered ? 'cursor-not-allowed' : ''}`}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
+                                                    instantFeedback && questionAnswered
+                                                        ? currentQuestion.correctAnswers.includes(option)
+                                                            ? 'border-green-600 bg-green-600'
+                                                            : currentAnswers.includes(option)
+                                                                ? 'border-red-600 bg-red-600'
+                                                                : 'border-gray-400'
+                                                        : currentAnswers.includes(option)
+                                                            ? 'border-indigo-600 bg-indigo-600'
+                                                            : 'border-gray-400'
+                                                }`}>
+                                                    {((instantFeedback && questionAnswered && currentQuestion.correctAnswers.includes(option)) || 
+                                                      (!questionAnswered && currentAnswers.includes(option)) ||
+                                                      (instantFeedback && questionAnswered && currentAnswers.includes(option))) && (
+                                                        <div className="w-3 h-3 bg-white rounded-full" />
+                                                    )}
+                                                </div>
+                                                <span className="text-gray-800">{option}</span>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+
+                                <div className="flex gap-4">
+                                    <button
+                                        onClick={previousQuestion}
+                                        disabled={currentQuestionIndex === 0 || (instantFeedback && questionAnswered)}
+                                        className="px-6 py-3 bg-gray-300 text-gray-700 rounded-xl hover:bg-gray-400 transition disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                                    >
+                                        Précédent
+                                    </button>
+                                    <button
+                                        onClick={nextQuestion}
+                                        disabled={currentAnswers.length === 0}
+                                        className="flex-1 bg-indigo-600 text-white px-6 py-3 rounded-xl hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                                    >
+                                        {instantFeedback && !questionAnswered 
+                                            ? 'Valider' 
+                                            : currentQuestionIndex === questions.length - 1 
+                                                ? 'Terminer' 
+                                                : 'Suivant'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // Résultats
+            if (showResults) {
+                const percentage = Math.round((score / questions.length) * 100);
+                
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
+                        <div className="max-w-3xl mx-auto">
+                            <div className="bg-white rounded-2xl shadow-xl p-8">
+                                <div className="text-center mb-8">
+                                    <button
+                                        onClick={() => setMode('menu')}
+                                        className="text-sm text-gray-600 hover:text-gray-800 flex items-center gap-1 mb-4 mx-auto transition"
+                                    >
+                                        <ArrowLeft className="w-4 h-4" />
+                                        Retour au menu
+                                    </button>
+                                    {percentage >= 80 ? (
+                                        <CheckCircle className="w-20 h-20 mx-auto text-green-500 mb-4" />
+                                    ) : (
+                                        <XCircle className="w-20 h-20 mx-auto text-orange-500 mb-4" />
+                                    )}
+                                    <h2 className="text-4xl font-bold text-gray-800 mb-2">
+                                        Score: {score} / {questions.length}
+                                    </h2>
+                                    <p className="text-2xl text-gray-600">
+                                        {percentage}%
+                                    </p>
+                                    <p className="text-gray-600 mt-4">
+                                        {percentage >= 80 ? 'Excellent travail !' : 'Continuez vos révisions !'}
+                                    </p>
+                                </div>
+
+                                <div className="space-y-4 mb-8 max-h-96 overflow-y-auto">
+                                    {questions.map((q, index) => {
+                                        const userAns = userAnswers[q.id] || [];
+                                        const isCorrect = userAns.length === q.correctAnswers.length &&
+                                                        userAns.every(a => q.correctAnswers.includes(a));
+                                        
+                                        return (
+                                            <div
+                                                key={q.id}
+                                                className={`p-4 rounded-xl border-2 ${
+                                                    isCorrect ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'
+                                                }`}
+                                            >
+                                                <div className="flex items-start gap-3">
+                                                    {isCorrect ? (
+                                                        <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0 mt-1" />
+                                                    ) : (
+                                                        <XCircle className="w-6 h-6 text-red-600 flex-shrink-0 mt-1" />
+                                                    )}
+                                                    <div className="flex-1">
+                                                        <p className="font-semibold text-gray-800 mb-2">
+                                                            {index + 1}. {q.text}
+                                                        </p>
+                                                        <p className="text-sm text-gray-700">
+                                                            Votre réponse: <span className={isCorrect ? 'text-green-700' : 'text-red-700'}>
+                                                                {userAns.length > 0 ? userAns.join(', ') : 'Pas de réponse'}
+                                                            </span>
+                                                        </p>
+                                                        {!isCorrect && (
+                                                            <p className="text-sm text-green-700 mt-1">
+                                                                Réponse correcte: {q.correctAnswers.join(', ')}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                <div className="flex gap-4">
+                                    <button
+                                        onClick={() => startQuiz(instantFeedback)}
+                                        className="flex-1 bg-indigo-600 text-white px-6 py-3 rounded-xl hover:bg-indigo-700 transition font-semibold"
+                                    >
+                                        Recommencer
+                                    </button>
+                                    <button
+                                        onClick={() => setMode('menu')}
+                                        className="px-6 py-3 bg-gray-300 text-gray-700 rounded-xl hover:bg-gray-400 transition font-semibold"
+                                    >
+                                        Menu
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            return null;
+        };
+
+        ReactDOM.render(<QCMTrainerApp />, document.getElementById('root'));
+    </script>
+</body>
+</html>

@@ -13,39 +13,12 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Style pour l'installation PWA */
-        .install-prompt {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: #4F46E5;
-            color: white;
-            padding: 12px 24px;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            z-index: 1000;
-            display: none;
-            align-items: center;
-            gap: 12px;
-            max-width: 90%;
-        }
-        .install-prompt.show {
-            display: flex;
-        }
-        .install-prompt button {
-            background: white;
-            color: #4F46E5;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 8px;
-            font-weight: 600;
-            cursor: pointer;
-        }
-        .install-prompt .close-btn {
-            background: transparent;
-            color: white;
-            padding: 4px 8px;
+        /* Amélioration du responsive */
+        @media (max-width: 640px) {
+            .install-prompt {
+                font-size: 14px;
+                padding: 10px 16px;
+            }
         }
     </style>
 </head>
@@ -66,17 +39,6 @@
         const installBtn = document.getElementById('installBtn');
         const closePromptBtn = document.getElementById('closePrompt');
 
-        // Vérifier si l'app est déjà installée
-        function isAppInstalled() {
-            // Vérifier si l'app est en mode standalone (installée)
-            return window.matchMedia('(display-mode: standalone)').matches || 
-                   window.navigator.standalone || 
-                   document.referrer.includes('android-app://');
-        }
-
-        // Vérifier si l'utilisateur a déjà fermé le prompt
-        const promptDismissed = localStorage.getItem('installPromptDismissed');
-
         // Enregistrer le service worker
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js').then(reg => {
@@ -88,11 +50,6 @@
 
         // Capturer l'événement d'installation
         window.addEventListener('beforeinstallprompt', (e) => {
-            // Ne rien faire si l'app est déjà installée ou si l'utilisateur a fermé le prompt
-            if (isAppInstalled() || promptDismissed) {
-                return;
-            }
-            
             e.preventDefault();
             deferredPrompt = e;
             
@@ -117,8 +74,6 @@
         // Fermer le prompt
         closePromptBtn.addEventListener('click', () => {
             installPromptEl.classList.remove('show');
-            // Mémoriser que l'utilisateur a fermé le prompt
-            localStorage.setItem('installPromptDismissed', 'true');
         });
 
         // Cacher le prompt si déjà installé
@@ -126,11 +81,6 @@
             installPromptEl.classList.remove('show');
             deferredPrompt = null;
         });
-
-        // Cacher le prompt si l'app est déjà en mode standalone
-        if (isAppInstalled()) {
-            installPromptEl.style.display = 'none';
-        }
     </script>
 
     <script type="text/babel">

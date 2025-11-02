@@ -51,6 +51,13 @@
 </head>
 <body>
     <div id="root"></div>
+    
+    <!-- Prompt d'installation PWA -->
+    <div id="installPrompt" class="install-prompt">
+        <span>📱 Installer l'application sur votre écran d'accueil</span>
+        <button id="installBtn">Installer</button>
+        <button id="closePrompt" class="close-btn">✕</button>
+    </div>
 
     <script>
         // Service Worker et PWA
@@ -58,6 +65,17 @@
         const installPromptEl = document.getElementById('installPrompt');
         const installBtn = document.getElementById('installBtn');
         const closePromptBtn = document.getElementById('closePrompt');
+
+        // Vérifier si l'app est déjà installée
+        function isAppInstalled() {
+            // Vérifier si l'app est en mode standalone (installée)
+            return window.matchMedia('(display-mode: standalone)').matches || 
+                   window.navigator.standalone || 
+                   document.referrer.includes('android-app://');
+        }
+
+        // Vérifier si l'utilisateur a déjà fermé le prompt
+        const promptDismissed = localStorage.getItem('installPromptDismissed');
 
         // Enregistrer le service worker
         if ('serviceWorker' in navigator) {
@@ -70,6 +88,11 @@
 
         // Capturer l'événement d'installation
         window.addEventListener('beforeinstallprompt', (e) => {
+            // Ne rien faire si l'app est déjà installée ou si l'utilisateur a fermé le prompt
+            if (isAppInstalled() || promptDismissed) {
+                return;
+            }
+            
             e.preventDefault();
             deferredPrompt = e;
             
@@ -94,6 +117,8 @@
         // Fermer le prompt
         closePromptBtn.addEventListener('click', () => {
             installPromptEl.classList.remove('show');
+            // Mémoriser que l'utilisateur a fermé le prompt
+            localStorage.setItem('installPromptDismissed', 'true');
         });
 
         // Cacher le prompt si déjà installé
@@ -101,6 +126,11 @@
             installPromptEl.classList.remove('show');
             deferredPrompt = null;
         });
+
+        // Cacher le prompt si l'app est déjà en mode standalone
+        if (isAppInstalled()) {
+            installPromptEl.style.display = 'none';
+        }
     </script>
 
     <script type="text/babel">

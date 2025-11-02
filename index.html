@@ -13,12 +13,39 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Amélioration du responsive */
-        @media (max-width: 640px) {
-            .install-prompt {
-                font-size: 14px;
-                padding: 10px 16px;
-            }
+        /* Style pour l'installation PWA */
+        .install-prompt {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #4F46E5;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            gap: 12px;
+            max-width: 90%;
+        }
+        .install-prompt.show {
+            display: flex;
+        }
+        .install-prompt button {
+            background: white;
+            color: #4F46E5;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .install-prompt .close-btn {
+            background: transparent;
+            color: white;
+            padding: 4px 8px;
         }
     </style>
 </head>
@@ -148,6 +175,12 @@
             </svg>
         );
 
+        const Trophy = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+            </svg>
+        );
+
         const Shuffle = ({ className }) => (
             <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
@@ -212,6 +245,55 @@
             const saveFolders = (newFolders) => {
                 localStorage.setItem('qcm-folders', JSON.stringify(newFolders));
                 setFolders(newFolders);
+            };
+
+            const getBestScore = (folderId) => {
+                const scores = JSON.parse(localStorage.getItem('qcm-scores') || '{}');
+                return scores[folderId] || null;
+            };
+
+            const saveBestScore = (folderId, score, total) => {
+                const scores = JSON.parse(localStorage.getItem('qcm-scores') || '{}');
+                const percentage = Math.round((score / total) * 100);
+                
+                if (!scores[folderId] || percentage > scores[folderId].percentage) {
+                    scores[folderId] = {
+                        score: score,
+                        total: total,
+                        percentage: percentage,
+                        date: new Date().toISOString()
+                    };
+                    localStorage.setItem('qcm-scores', JSON.stringify(scores));
+                    return true; // Nouveau record
+                }
+                return false; // Pas de nouveau record
+            };
+
+            const getScoreHistory = (folderId) => {
+                const history = JSON.parse(localStorage.getItem('qcm-history') || '{}');
+                return history[folderId] || [];
+            };
+
+            const saveScoreToHistory = (folderId, score, total) => {
+                const history = JSON.parse(localStorage.getItem('qcm-history') || '{}');
+                if (!history[folderId]) {
+                    history[folderId] = [];
+                }
+                
+                const percentage = Math.round((score / total) * 100);
+                history[folderId].push({
+                    score: score,
+                    total: total,
+                    percentage: percentage,
+                    date: new Date().toISOString()
+                });
+                
+                // Garder seulement les 10 derniers scores
+                if (history[folderId].length > 10) {
+                    history[folderId] = history[folderId].slice(-10);
+                }
+                
+                localStorage.setItem('qcm-history', JSON.stringify(history));
             };
 
             const createFolder = () => {
@@ -450,7 +532,19 @@
                     }
                 });
                 setScore(correct);
+                
+                // Sauvegarder le score
+                saveScoreToHistory(currentFolder.id, correct, questions.length);
+                const isNewRecord = saveBestScore(currentFolder.id, correct, questions.length);
+                
                 setShowResults(true);
+                
+                // Afficher une alerte si nouveau record
+                if (isNewRecord) {
+                    setTimeout(() => {
+                        alert('🎉 Nouveau record ! Félicitations !');
+                    }, 500);
+                }
             };
 
             const deleteQuestion = (id) => {
@@ -608,34 +702,45 @@
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {folders.map(folder => (
-                                        <div key={folder.id} className="border-2 border-gray-200 rounded-xl p-6 hover:shadow-lg transition group">
-                                            <div className="flex items-start justify-between mb-4">
-                                                <div className="flex items-center gap-3 flex-1">
-                                                    <Folder className="w-10 h-10 text-indigo-600" />
-                                                    <div>
-                                                        <h3 className="text-xl font-bold text-gray-800">{folder.name}</h3>
-                                                        <p className="text-sm text-gray-500">{folder.questions.length} questions</p>
+                                    {folders.map(folder => {
+                                        const bestScore = getBestScore(folder.id);
+                                        return (
+                                            <div key={folder.id} className="border-2 border-gray-200 rounded-xl p-6 hover:shadow-lg transition group">
+                                                <div className="flex items-start justify-between mb-4">
+                                                    <div className="flex items-center gap-3 flex-1">
+                                                        <Folder className="w-10 h-10 text-indigo-600" />
+                                                        <div>
+                                                            <h3 className="text-xl font-bold text-gray-800">{folder.name}</h3>
+                                                            <p className="text-sm text-gray-500">{folder.questions.length} questions</p>
+                                                            {bestScore && (
+                                                                <div className="flex items-center gap-1 mt-1">
+                                                                    <Trophy className="w-4 h-4 text-yellow-500" />
+                                                                    <span className="text-sm font-semibold text-yellow-600">
+                                                                        Record: {bestScore.percentage}% ({bestScore.score}/{bestScore.total})
+                                                                    </span>
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </div>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            deleteFolder(folder.id);
+                                                        }}
+                                                        className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition opacity-0 group-hover:opacity-100"
+                                                    >
+                                                        <Trash2 className="w-5 h-5" />
+                                                    </button>
                                                 </div>
                                                 <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        deleteFolder(folder.id);
-                                                    }}
-                                                    className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition opacity-0 group-hover:opacity-100"
+                                                    onClick={() => selectFolder(folder)}
+                                                    className="w-full bg-indigo-100 text-indigo-700 px-4 py-2 rounded-lg hover:bg-indigo-200 transition font-semibold"
                                                 >
-                                                    <Trash2 className="w-5 h-5" />
+                                                    Ouvrir
                                                 </button>
                                             </div>
-                                            <button
-                                                onClick={() => selectFolder(folder)}
-                                                className="w-full bg-indigo-100 text-indigo-700 px-4 py-2 rounded-lg hover:bg-indigo-200 transition font-semibold"
-                                            >
-                                                Ouvrir
-                                            </button>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
 
                                 {folders.length === 0 && (
@@ -652,6 +757,9 @@
 
             // Menu principal d'un dossier
             if (mode === 'menu') {
+                const bestScore = getBestScore(currentFolder.id);
+                const scoreHistory = getScoreHistory(currentFolder.id);
+                
                 return (
                     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
                         <div className="max-w-4xl mx-auto">
@@ -668,6 +776,44 @@
                                     <Folder className="w-16 h-16 mx-auto text-indigo-600 mb-4" />
                                     <h1 className="text-4xl font-bold text-gray-800 mb-2">{currentFolder.name}</h1>
                                     <p className="text-sm text-gray-500 mt-2">{questions.length} questions disponibles</p>
+                                    
+                                    {bestScore && (
+                                        <div className="mt-4 inline-flex items-center gap-2 bg-yellow-50 border-2 border-yellow-300 px-4 py-2 rounded-lg">
+                                            <Trophy className="w-6 h-6 text-yellow-500" />
+                                            <div className="text-left">
+                                                <p className="text-sm text-gray-600">Meilleur score</p>
+                                                <p className="text-xl font-bold text-yellow-700">
+                                                    {bestScore.percentage}% ({bestScore.score}/{bestScore.total})
+                                                </p>
+                                                <p className="text-xs text-gray-500">
+                                                    {new Date(bestScore.date).toLocaleDateString('fr-FR')}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+                                    
+                                    {scoreHistory.length > 0 && (
+                                        <div className="mt-4">
+                                            <details className="text-left">
+                                                <summary className="text-sm text-gray-600 cursor-pointer hover:text-gray-800 inline-flex items-center gap-2">
+                                                    📊 Historique des {scoreHistory.length} derniers scores
+                                                </summary>
+                                                <div className="mt-3 space-y-2 max-h-40 overflow-y-auto">
+                                                    {scoreHistory.slice().reverse().map((s, i) => (
+                                                        <div key={i} className="flex justify-between items-center text-sm bg-gray-50 px-3 py-2 rounded">
+                                                            <span className="text-gray-600">
+                                                                {new Date(s.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                                            </span>
+                                                            <span className={`font-semibold ${s.percentage >= 80 ? 'text-green-600' : 'text-orange-600'}`}>
+                                                                {s.percentage}% ({s.score}/{s.total})
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </details>
+                                        </div>
+                                    )}
+                                    
                                     <button
                                         onClick={exportFolder}
                                         className="mt-4 text-sm bg-blue-100 text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-200 transition inline-flex items-center gap-2"
@@ -1013,6 +1159,8 @@ Option incorrecte
             // Résultats
             if (showResults) {
                 const percentage = Math.round((score / questions.length) * 100);
+                const bestScore = getBestScore(currentFolder.id);
+                const isNewRecord = bestScore && percentage > bestScore.percentage;
                 
                 return (
                     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
@@ -1026,6 +1174,14 @@ Option incorrecte
                                         <ArrowLeft className="w-4 h-4" />
                                         Retour au menu
                                     </button>
+                                    
+                                    {isNewRecord && (
+                                        <div className="mb-4 animate-bounce">
+                                            <Trophy className="w-16 h-16 mx-auto text-yellow-500" />
+                                            <p className="text-xl font-bold text-yellow-600 mt-2">🎉 Nouveau Record ! 🎉</p>
+                                        </div>
+                                    )}
+                                    
                                     {percentage >= 80 ? (
                                         <CheckCircle className="w-20 h-20 mx-auto text-green-500 mb-4" />
                                     ) : (
@@ -1040,6 +1196,12 @@ Option incorrecte
                                     <p className="text-gray-600 mt-4">
                                         {percentage >= 80 ? 'Excellent travail !' : 'Continuez vos révisions !'}
                                     </p>
+                                    
+                                    {bestScore && !isNewRecord && (
+                                        <p className="text-sm text-gray-500 mt-2">
+                                            Meilleur score: {bestScore.percentage}% ({bestScore.score}/{bestScore.total})
+                                        </p>
+                                    )}
                                 </div>
 
                                 <div className="space-y-4 mb-8 max-h-96 overflow-y-auto">

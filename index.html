@@ -7,7 +7,7 @@
     <meta name="description" content="Application d'entraînement QCM pour révisions">
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==">
-    <title>QCM Trainer</title>
+    <title>QCM Trainer - Protéomique</title>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -175,6 +175,12 @@
             </svg>
         );
 
+        const Target = ({ className }) => (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+        );
+
         const Trophy = ({ className }) => (
             <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
@@ -214,6 +220,7 @@
             const [answeredQuestions, setAnsweredQuestions] = useState({});
             const [shuffleQuestions, setShuffleQuestions] = useState(false);
             const [shuffleOptions, setShuffleOptions] = useState(false);
+            const [failedQuestionsMode, setFailedQuestionsMode] = useState(false);
 
             useEffect(() => {
                 loadFolders();
@@ -294,6 +301,23 @@
                 }
                 
                 localStorage.setItem('qcm-history', JSON.stringify(history));
+            };
+
+            const getFailedQuestions = (folderId) => {
+                const failed = JSON.parse(localStorage.getItem('qcm-failed') || '{}');
+                return failed[folderId] || [];
+            };
+
+            const saveFailedQuestions = (folderId, failedIds) => {
+                const failed = JSON.parse(localStorage.getItem('qcm-failed') || '{}');
+                failed[folderId] = failedIds;
+                localStorage.setItem('qcm-failed', JSON.stringify(failed));
+            };
+
+            const clearFailedQuestions = (folderId) => {
+                const failed = JSON.parse(localStorage.getItem('qcm-failed') || '{}');
+                delete failed[folderId];
+                localStorage.setItem('qcm-failed', JSON.stringify(failed));
             };
 
             const createFolder = () => {
@@ -441,16 +465,28 @@
                 return shuffled;
             };
 
-            const startQuiz = (instant = false) => {
+            const startQuiz = (instant = false, failedOnly = false) => {
                 setInstantFeedback(instant);
+                setFailedQuestionsMode(failedOnly);
                 setCurrentQuestionIndex(0);
                 setUserAnswers({});
                 setAnsweredQuestions({});
                 setShowResults(false);
                 setScore(0);
                 
-                // Mélanger les questions si l'option est activée
+                // Filtrer les questions ratées si nécessaire
                 let quizQuestions = [...questions];
+                if (failedOnly) {
+                    const failedIds = getFailedQuestions(currentFolder.id);
+                    quizQuestions = questions.filter(q => failedIds.includes(q.id));
+                    
+                    if (quizQuestions.length === 0) {
+                        alert('Aucune question ratée ! Bravo ! 🎉');
+                        return;
+                    }
+                }
+                
+                // Mélanger les questions si l'option est activée
                 if (shuffleQuestions) {
                     quizQuestions = shuffleArray(quizQuestions);
                 }
@@ -522,16 +558,31 @@
 
             const calculateScore = () => {
                 let correct = 0;
+                const failedIds = [];
+                
                 questions.forEach(q => {
                     const userAns = userAnswers[q.id] || [];
                     const correctAns = q.correctAnswers;
                     
-                    if (userAns.length === correctAns.length &&
-                        userAns.every(a => correctAns.includes(a))) {
+                    const isCorrect = userAns.length === correctAns.length &&
+                        userAns.every(a => correctAns.includes(a));
+                    
+                    if (isCorrect) {
                         correct++;
+                    } else {
+                        failedIds.push(q.id);
                     }
                 });
+                
                 setScore(correct);
+                
+                // Sauvegarder les questions ratées (sauf en mode révision des ratées)
+                if (!failedQuestionsMode) {
+                    saveFailedQuestions(currentFolder.id, failedIds);
+                } else if (failedIds.length === 0) {
+                    // Si toutes les questions ratées sont maintenant réussies, nettoyer la liste
+                    clearFailedQuestions(currentFolder.id);
+                }
                 
                 // Sauvegarder le score
                 saveScoreToHistory(currentFolder.id, correct, questions.length);
@@ -759,6 +810,8 @@
             if (mode === 'menu') {
                 const bestScore = getBestScore(currentFolder.id);
                 const scoreHistory = getScoreHistory(currentFolder.id);
+                const failedQuestions = getFailedQuestions(currentFolder.id);
+                const failedCount = failedQuestions.length;
                 
                 return (
                     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
@@ -852,7 +905,7 @@
                                 
                                 <div className="grid gap-4">
                                     <button
-                                        onClick={() => startQuiz(false)}
+                                        onClick={() => startQuiz(false, false)}
                                         disabled={questions.length === 0}
                                         className="flex items-center justify-center gap-3 bg-indigo-600 text-white px-8 py-4 rounded-xl hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed text-lg font-semibold"
                                     >
@@ -861,13 +914,26 @@
                                     </button>
 
                                     <button
-                                        onClick={() => startQuiz(true)}
+                                        onClick={() => startQuiz(true, false)}
                                         disabled={questions.length === 0}
                                         className="flex items-center justify-center gap-3 bg-purple-600 text-white px-8 py-4 rounded-xl hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed text-lg font-semibold"
                                     >
                                         <Zap className="w-6 h-6" />
                                         Mode Feedback Instantané
                                     </button>
+
+                                    {failedCount > 0 && (
+                                        <button
+                                            onClick={() => startQuiz(false, true)}
+                                            className="flex items-center justify-center gap-3 bg-red-600 text-white px-8 py-4 rounded-xl hover:bg-red-700 transition text-lg font-semibold relative"
+                                        >
+                                            <Target className="w-6 h-6" />
+                                            Réviser les questions ratées
+                                            <span className="absolute -top-2 -right-2 bg-yellow-400 text-red-900 text-sm font-bold px-3 py-1 rounded-full">
+                                                {failedCount}
+                                            </span>
+                                        </button>
+                                    )}
                                     
                                     <button
                                         onClick={() => setMode('add')}
@@ -1161,6 +1227,7 @@ Option incorrecte
                 const percentage = Math.round((score / questions.length) * 100);
                 const bestScore = getBestScore(currentFolder.id);
                 const isNewRecord = bestScore && percentage > bestScore.percentage;
+                const failedCount = getFailedQuestions(currentFolder.id).length;
                 
                 return (
                     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
@@ -1174,6 +1241,13 @@ Option incorrecte
                                         <ArrowLeft className="w-4 h-4" />
                                         Retour au menu
                                     </button>
+                                    
+                                    {failedQuestionsMode && score === questions.length && (
+                                        <div className="mb-4 bg-green-50 border-2 border-green-500 rounded-xl p-4">
+                                            <CheckCircle className="w-12 h-12 mx-auto text-green-500 mb-2" />
+                                            <p className="text-lg font-bold text-green-700">Toutes les questions ratées sont maintenant maîtrisées ! 🎉</p>
+                                        </div>
+                                    )}
                                     
                                     {isNewRecord && (
                                         <div className="mb-4 animate-bounce">
@@ -1196,6 +1270,14 @@ Option incorrecte
                                     <p className="text-gray-600 mt-4">
                                         {percentage >= 80 ? 'Excellent travail !' : 'Continuez vos révisions !'}
                                     </p>
+                                    
+                                    {!failedQuestionsMode && failedCount > 0 && (
+                                        <div className="mt-4 bg-red-50 border-2 border-red-300 rounded-xl p-3 inline-block">
+                                            <p className="text-sm text-red-700">
+                                                <strong>{failedCount}</strong> question{failedCount > 1 ? 's' : ''} ratée{failedCount > 1 ? 's' : ''} à réviser
+                                            </p>
+                                        </div>
+                                    )}
                                     
                                     {bestScore && !isNewRecord && (
                                         <p className="text-sm text-gray-500 mt-2">
@@ -1246,11 +1328,19 @@ Option incorrecte
 
                                 <div className="flex gap-4">
                                     <button
-                                        onClick={() => startQuiz(instantFeedback)}
+                                        onClick={() => startQuiz(instantFeedback, failedQuestionsMode)}
                                         className="flex-1 bg-indigo-600 text-white px-6 py-3 rounded-xl hover:bg-indigo-700 transition font-semibold"
                                     >
                                         Recommencer
                                     </button>
+                                    {failedQuestionsMode && failedCount > 0 && (
+                                        <button
+                                            onClick={() => startQuiz(false, true)}
+                                            className="flex-1 bg-red-600 text-white px-6 py-3 rounded-xl hover:bg-red-700 transition font-semibold"
+                                        >
+                                            Réviser les ratées ({failedCount})
+                                        </button>
+                                    )}
                                     <button
                                         onClick={() => setMode('menu')}
                                         className="px-6 py-3 bg-gray-300 text-gray-700 rounded-xl hover:bg-gray-400 transition font-semibold"
